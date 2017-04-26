@@ -1,5 +1,7 @@
 # THOMAS E WILSON 
-# RUBY COMPILER written from
+# ID: 879889
+# RUBY COMPILER written from Python translation.
+# 
 
 $TRUE = 1
 $FALSE = 0
@@ -33,35 +35,37 @@ $ERROR_NOPROCEDURE      =19
 module Symbols
     VAR = 0
     CONST = 1
-    BEGINSYM = 2
-    ENDSYM = 3
-    PERIOD = 4
-    SEMICOLON = 5
-    COLON = 6
-    LPAREN = 7
-    RPAREN = 8
-    GRTHEN = 9
-    LSTHEN = 10
-    GREQL = 11
-    LSEQL = 12
-    EQL = 13
-    ASSIGN = 14
-    IF = 15
-    IDENT = 16
-    NUM = 17
-    PROC = 18
-    NOTEQL = 19
-    MINUS = 20
-    PLUS = 21
-    DIV = 22
-    MULT = 23
-    COMMA = 24
-    ODD = 25
-    CALL = 26
-    THEN = 27
+    IDENT = 2
+    PROC = 3
+    BEGINSYM = 4
+    ENDSYM = 5
+    GREQL = 6
+    LSEQL = 7
+    EQL = 8
+    ASSIGN = 9
+    IF = 10
+    THEN = 11
+    ELSE = 12
+    NUM = 13
+    NOTEQL = 14
+    MINUS = 15
+    PLUS = 16
+    DIV = 17
+    MULT = 18
+    COMMA = 19
+    SEMICOLON = 20
+    COLON = 21
+    LPAREN = 22
+    RPAREN = 23
+    GRTHEN = 24
+    LSTHEN = 25
+    ODD = 26
+    CALL = 27
     WHILE = 28
     DO = 29
-    ELSE = 30
+    WRITE = 30
+    WRITELN = 31
+    PERIOD = 32
 end
 
 module Objtype
@@ -87,17 +91,18 @@ $number = 0
 
 $prevsym = 0                        #holds the previous Symbol
 $sym = 0                            #holds current Symbol
-$tablen = [$MAX_TABLE]                 #table arrays
+$tablen = [$MAX_TABLE]                 #table arrays    TO BE CHANGED
 $tablek = [$MAX_TABLE]
-$id = ""                             #an identification string
-$fullline = ""                        #holds entire input line
+$id = ""                             #ID: Saves Current Word
+$fullline = ""                        #Variable: Reading one line at a time
 $punc = ""                            #punction array
 $symstr = [$MAX_Symbol]                  #Symbols array
 $tableinx = 0                           #table size
 $codeIndx0 = 0                          #Beginning Code Index Before First statement
 $codeIndx = 0                           #Keeping Track of Current Index of Code Array
+$prevIndx = 0
 
-$table = []
+$table = [$MAX_TABLE]
 $code = []  # Code Array
 $stack = [] # Interpreter Stack
 
@@ -106,10 +111,10 @@ class TableValue
     attr_reader :name, :kind, :level, :adr, :value
     def initialize(name, kind, level, adr, value)
         @name = name
-    @kind = kind
-    @level = level
-    @adr = adr
-    @value = value
+        @kind = kind
+        @level = level
+        @adr = adr
+        @value = value
     end
 end
 #-------------------Commands to put in the array of assembly code------------------------------------------------
@@ -242,7 +247,7 @@ end
           puts @stack[top]
           top -= 1
         elsif instr.value == 15 #Write/Print a newline
-          puts
+          puts ""
         else
           puts "Error: No Match"
         end
@@ -334,12 +339,11 @@ def error(num)
 end
 
 #---------------ENTER PROCEDURE-------------------------------
-def enter(kind, name)
+def enter(name, kind, level, dx)
 
 
     $tableinx += 1
-    $tablen[$tableinx] = name
-    $tablek[$tableinx] = kind
+    #$table[$tableinx] = TableValue.new(name, kind, level, adr, value)
 
     if (kind == Objtype::CONSTANT)
     
@@ -354,129 +358,118 @@ def enter(kind, name)
         if $sym != Symbols::NUM
             error($ERROR_NUMBER)
         end
+        $table[$tableinx] = TableValue.new(name, kind, level, "NULL", $number)
         getsym()
     elsif kind == Objtype::VARIABLE
         if $sym != Symbols::IDENT
             error($ERROR_IDENT)
         end
+        $table[$tableinx] = TableValue.new(name, kind, level, dx, "NULL")
+        dx += 1
         getsym()
     elsif kind == Objtype::PROCEDURE
+        $table[$tableinx] = TableValue.new(name, kind, level, dx, "NULL")
         getsym()
     end
+    return dx
 end
 
 #--------------POSITION FUNCTION----------------------------
 def position()
 
+    $table[0] = TableValue.new($id, "TEST", "TEST", "TEST", "TEST")
     i = $tableinx
 
-    $tablen[0] = $id
-
-    while $tablen[i] != $id do
-        
+    while $table[i].name != $id do
         i -= 1
-
+        break if i == 0
     end
     return i
 end
 
 #-------------BLOCK------------------------------------------------
-def block(tableIndex, level)
+def block(level)
 
-    tx[0] = tableIndex
-    tx0 = tableIndex
     dx = 3
-    cx1 = codeIndx
+    cx1 = $codeIndx
     gen("JMP", 0 , 0)
 
+    # --------CONSTANT SYM----------
     if $sym == Symbols::CONST
-    
-        #// ---- CONSTANT SYM ----
-        getsym()
-        enter(Objtype::CONSTANT, $id)
-
-        while $sym == Symbols::COMMA do
+        loop do
             getsym()
-            enter(Objtype::CONSTANT, $id)
+            enter($id, Objtype::CONSTANT, level, "NULL")
+            break if $sym != Symbols::COMMA
         end
         if $sym != Symbols::SEMICOLON
             error($ERROR_SEMICOLON)
         end
         getsym()
     end
-    #// ---- VARIABLE SYM ----
+    # --------VARIABLE-SYM---------
     if $sym == Symbols::VAR
-    
-        getsym()
-
-        enter(Objtype::VARIABLE, $id)
-        while $sym == Symbols::COMMA do
+        loop do
             getsym()
-
-            enter(Objtype::VARIABLE, $id)
+            dx = enter($id, Objtype::VARIABLE, level, dx)
+            break if $sym != Symbols::COMMA 
         end
         if $sym != Symbols::SEMICOLON
             error($ERROR_SEMICOLON)
         end
         getsym()
     end
-    #// ---- PROCEDURE SYM ----
+    # --------PROCEDURE-SYM---------
     while $sym == Symbols::PROC do
-    
-        while $sym == Symbols::PROC do
-        
             getsym()
             if $sym != Symbols::IDENT
                 error($ERROR_IDENT)
             end
-            enter(Objtype::PROCEDURE, $id)
+            enter($id, Objtype::PROCEDURE, level, $codeIndx)
             getsym()
 
-            block(tx[0], level+1)#//inc static link for functions inside of functions, table current pointer
+            block(level+1)  #Passing Level to Determine the Layering of Functions in the Program.
 
             if $sym != Symbols::SEMICOLON
                 error($ERROR_SEMICOLON)
             end
             getsym()
-        end
     end
 
     fixJmp(cx1, $codeIndx)
     $codeIndx0 = $codeIndx
     gen("INT", 0, dx)
-    statement(tx[0], level)
+    statement($tableinx, level)
     gen("OPR", 0, 0)
     #print code for this block
     printCode()
 end
 
 #--------------STATEMENT----------------------------------------
-def statement()
+def statement(tx, level)
 
     i = 0
-
     case $sym
-        #// IDENT
+        #   IDENT
         when Symbols::IDENT
             i = position()
             if i == 0
                 error($ERROR_UNKNOWN)
             end
 
-            case $tablek[i]
+            case $table[i].kind
                 when Objtype::VARIABLE
                     getsym()
                     if $sym != Symbols::ASSIGN
                         error($ERROR_ASSIGN)
                     end
                     getsym()
-                    expression()
-                    gen("STO", level - table[i].level, table[i].adr)
+                    expression(tx, level)
+                    gen("STO", level - $table[i].level, $table[i].adr)
                 else
                     error($ERROR_ASSIGN_PROC)
             end
 
-        #// PROCEDURE CALL
+        #   PROCEDURE CALL
         when Symbols::CALL
             getsym()
 
@@ -489,52 +482,52 @@ def statement()
                 error($ERROR_UNKNOWN)
             end
 
-            if $tablek[i] != Objtype::PROCEDURE
+            if $table[i].kind != Objtype::PROCEDURE
                 error($ERROR_PROCEDURE)
             end
 
             getsym()
-            gen("CAL", level - table[i].level, table[i].adr)
+            gen("CAL", level - $table[i].level, $table[i].adr)
 
-        #// BEGIN and END block
+        #   BEGIN and END block
         when Symbols::BEGINSYM
             getsym()
-            statement()
+            statement(tx, level)
             while $sym == Symbols::SEMICOLON do
                 getsym()
-                statement()
+                statement(tx, level)
             end
             if $sym != Symbols::ENDSYM
                 error($ERROR_END_SYM)
             end
             getsym()
 
-        #// WHILE Symbol
+        #  WHILE Symbol
         when Symbols::WHILE
             getsym()
             cx1 = $codeIndx
-            condition()
+            condition(tx, level)
             cx2 = $codeIndx
             gen("JPC", 0, 0)
             if $sym != Symbols::DO
                 error($ERROR_DO_SYM)
             end
             getsym()
-            statement()
+            statement(tx, level)
             gen("JMP", 0, cx1)
             fixJmp(cx2, $codeIndx)
 
-        #// IF - THEN - ELSE
+        #  IF - THEN - ELSE
         when Symbols::IF
             getsym()
-            condition()
+            condition(tx, level)
             cx1 = $codeIndx
             gen("JPC", 0, 0)
             if $sym != Symbols::THEN
                 error($ERROR_THEN_SYM)
             end
             getsym()
-            statement()
+            statement(tx, level)
             if $sym == Symbols::ELSE
                 cx2 = $codeIndx
                 gen("JMP", 0, 0)
@@ -544,20 +537,65 @@ def statement()
                 fixJmp(cx2, $codeIndx)
             else
                 fixJmp(cx1, $codeIndx)
+
+        #  WRITE 
+        when Symbols::WRITE
+            getsym()
+            if $sym != Symbols::LPAREN
+                error($ERROR_LPAREN)
+            loop do
+                getsym()
+                expression(tx, level)
+                gen("OPR", 0, 14)
+                break if $sym != Symbols::COMMA
+            end
+            if $sym != Symbols::RPAREN
+                error($ERROR_RPAREN)
+            getsym()
+
+         #  WRITELN 
+        when Symbols::WRITELN
+            getsym()
+            if $sym != Symbols::LPAREN
+                error($ERROR_LPAREN)
+            loop do
+                getsym()
+                expression(tx, level)
+                gen("OPR", 0, 14)
+                break if $sym != Symbols::COMMA
+            end
+            if $sym != Symbols::RPAREN
+                error($ERROR_RPAREN)
+            gen("OPR", 0, 15)
+            getsym()
     end
 end
 
 #----------CONDITION---------------------------------------
-def condition()
+def condition(tx, level)
     #// ODD Symbol
     if $sym == Symbols::ODD
         getsym()
-        expression()
+        expression(tx, level)
+        gen("OPR", 0, 6)
     else
-        expression()
+        expression(tx, level)
         if (($sym == Symbols::EQL) || ($sym == Symbols::NOTEQL) || ($sym == Symbols::LSTHEN) || ($sym == Symbols::LSEQL) || ($sym == Symbols::GRTHEN) || ($sym == Symbols::GREQL))
+            temp = $sym
             getsym()
-            expression()
+            expression(tx, level)
+            if temp == Symbols::EQL
+                gen("OPR", 0, 8)
+            elsif temp == Symbols::NOTEQL
+                gen("OPR", 0, 9)
+            elsif temp == Symbols::LSTHEN
+                gen("OPR", 0, 10)
+            elsif temp == Symbols::GREQL
+                gen("OPR", 0, 11)
+            elsif temp == Symbols::GRTHEN
+                gen("OPR", 0, 12)
+            elsif temp == Symbols::LSEQL
+                gen("OPR", 0, 13)
         else
             error($ERROR_REL)
         end
@@ -565,31 +603,31 @@ def condition()
 end
 
 #------------------------------EXPRESSION----------------------------
-def expression()
+def expression(tx, level)
     if (($sym == Symbols::PLUS) || ($sym == Symbols::MINUS))
         getsym()
-        term()
+        term(tx, level)
     else
-        term()
+        term(tx, level)
     end
 
     while ($sym == Symbols::PLUS || $sym == Symbols::MINUS) do
         getsym()
-        term()
+        term(tx, level)
     end
 end
 
 #-----------------------TERM-----------------------------
-def term()
-    factor()
+def term(tx, level)
+    factor(tx, level)
     while (($sym == Symbols::MULT) || ($sym == Symbols::DIV)) do
         getsym()
-        factor()
+        factor(tx, level)
     end
 end
 
 #-----------------------FACTOR------------------------------
-def factor()
+def factor(tx, level)
     i = 0
 
     case $sym
@@ -599,19 +637,24 @@ def factor()
             if i == 0
                 error($ERROR_UNKNOWN)
             end
-            if $tablek[i] == Objtype::PROCEDURE
+            if $table[i].kind == Objtype::CONSTANT
+                gen("LIT", 0, $table[i].value)
+            if $table[i].kind == Objtype::VARIABLE
+                gen("LOD", level-$table[i].level, $table[i].adr)
+            if $table[i].kind == Objtype::PROCEDURE
                 error($ERROR_IS_PROCEDURE)
             end
             getsym()
 
         #// NUMBER
         when Symbols::NUM
+            gen("LIT", 0, $number)
             getsym()
 
         #// LEFT PARENTHESE
         when Symbols::LPAREN
             getsym()
-            expression()
+            expression(tx, level)
             if $sym != Symbols::RPAREN
                 error($ERROR_RPAREN)
             end
@@ -621,17 +664,20 @@ def factor()
     end
 end
 
-def letter(ch)
-    ch =~ /[[:alpha:]]/
+
+#-----------REGEX MATCH SECTION
+def letter(ch)              #Function to Check if the letter is Alpha-Numeric Character
+    ch =~ /[[:alpha:]]/     #Regex - Match
 end
 
 def numeric(ch)
-    ch =~ /[[:digit:]]/
+    ch =~ /[[:digit:]]/     #Function to Check if the Character is a digit
 end
 
 def punct(ch)
-    ch =~ /[[:punct:]]/
+    ch =~ /[[:punct:]]/     #Function to Check if the Character is Punctuation
 end
+#-----------END REGEX MATCH
 
 def chartype(ch)
     if (ch == '\n' || ch == '\r')
@@ -722,6 +768,10 @@ def getsym()
             $sym = Symbols::VAR
         elsif $id =="WHILE"
             $sym = Symbols::WHILE
+        elsif $id =="WRITE"
+            $sym = Symbols::WRITE
+        elsif $id =="WRITELN"
+            $sym = Symbols::WRITELN
         else
             $sym = Symbols::IDENT;
             $symstr[$sym] = $id
